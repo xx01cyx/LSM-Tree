@@ -3,10 +3,12 @@
 
 KVStore::KVStore(const std::string &dir): KVStoreAPI(dir)
 {
+    memTable = new MemTable();
 }
 
 KVStore::~KVStore()
 {
+    delete memTable;
 }
 
 /**
@@ -15,6 +17,7 @@ KVStore::~KVStore()
  */
 void KVStore::put(uint64_t key, const std::string &s)
 {
+    memTable->put(key, s);
 }
 /**
  * Returns the (string) value of the given key.
@@ -22,7 +25,7 @@ void KVStore::put(uint64_t key, const std::string &s)
  */
 std::string KVStore::get(uint64_t key)
 {
-	return "";
+	return memTable->get(key);
 }
 /**
  * Delete the given key-value pair if it exists.
@@ -30,7 +33,9 @@ std::string KVStore::get(uint64_t key)
  */
 bool KVStore::del(uint64_t key)
 {
-	return false;
+    bool deleted = memTable->del(key);
+    memTable->put(key, DELETE_SIGN);
+	return deleted;
 }
 
 /**
@@ -39,4 +44,5 @@ bool KVStore::del(uint64_t key)
  */
 void KVStore::reset()
 {
+    memTable->reset();
 }

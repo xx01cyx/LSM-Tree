@@ -1,10 +1,13 @@
 #pragma once
 
 #include "kvstore_api.h"
+#include "MemTable.h"
+#include "constants.h"
 
 class KVStore : public KVStoreAPI {
-	// You can add your implementation here
+
 private:
+    MemTable* memTable;
 
 public:
 	KVStore(const std::string &dir);

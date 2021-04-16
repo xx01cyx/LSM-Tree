@@ -1,3 +1,7 @@
 README.md
 data/
 .idea/
+*.o
+correctness
+persistence
+.DS_Store
