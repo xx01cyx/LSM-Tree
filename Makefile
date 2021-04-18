@@ -4,9 +4,8 @@ CXXFLAGS = -std=c++14 -Wall
 
 all: correctness persistence
 
-correctness: kvstore.o correctness.o MemTable.o BloomFilter.o
-
-persistence: kvstore.o persistence.o MemTable.o BloomFilter.o
+correctness: BloomFilter.o SSTable.o MemTable.o kvstore.o correctness.o
+persistence: BloomFilter.o SSTable.o MemTable.o kvstore.o persistence.o
 
 clean:
 	-rm -f correctness persistence *.o

@@ -1,7 +1,13 @@
 #ifndef LSM_TREE_MEMTABLE_H
 #define LSM_TREE_MEMTABLE_H
 
+#include <iostream>
+#include <string>
+#include <stack>
+#include <cstdlib>
+#include <memory>
 #include "constants.h"
+#include "SSTable.h"
 
 using namespace std;
 
@@ -25,6 +31,10 @@ class MemTable {
 
 private:
     Node* head;
+    uint64_t keyNumber;
+    int level0Number;   // for infinite level 0
+
+    Node* getLowestHead() const;
 
 public:
     MemTable();
@@ -33,6 +43,7 @@ public:
     LsmValue get(LsmKey k);
     bool del(LsmKey k);
     void reset();
+    SSTPtr writeToDisk(uint64_t timeToken);
 };
 
 

@@ -1,10 +1,10 @@
 #include "MemTable.h"
-#include <string>
-#include <stack>
-#include <cstdlib>
+#include "utils.h"
 
 MemTable::MemTable() {
     head = new Node();
+    keyNumber = 0;
+    level0Number = 0;
 }
 
 MemTable::~MemTable() {
@@ -17,7 +17,6 @@ void MemTable::put(LsmKey k, LsmValue v) {
 
     stack<Node*> path = stack<Node*>();
     Node* p = head;
-
 
     while (p) {
         while (p->next && p->next->key < k)
@@ -48,6 +47,8 @@ void MemTable::put(LsmKey k, LsmValue v) {
         prevAddedNode = newNode;
     } while (rand() & 1);
 
+    keyNumber++;
+
 }
 
 LsmValue MemTable::get(LsmKey k) {
@@ -57,12 +58,8 @@ LsmValue MemTable::get(LsmKey k) {
     while (p) {
         while (p->next && p->next->key < k)
             p = p->next;
-        if (p->next && k == p->next->key) {
-            LsmValue value = p->next->value;
-            if (value == DELETE_SIGN)
-                return "";
+        if (p->next && k == p->next->key)
             return p->next->value;
-        }
         p = p->down;
     }
 
@@ -110,4 +107,88 @@ void MemTable::reset() {
         delete delHead;
     }
     head = new Node();
+    keyNumber = 0;
+}
+
+/**
+ * If overflow, write the data in memTable into level 0 in disk
+ * in the order of data index, header, bloom filter and data.
+ * @return an SSTable that stores the cached information.
+ */
+SSTPtr MemTable::writeToDisk(uint64_t timeToken) {
+
+    // Create the directory.
+    string pathname = "./data/level-0/";
+    utils::mkdir(pathname.c_str());
+
+    // Open the output file.
+    string filename = pathname + "table" + to_string(level0Number++) + ".sst";
+    ofstream out(filename, ios::out | ios::binary);
+    if (!out.is_open()) {
+        cerr << "Open file failed." << endl;
+        exit(-1);
+    }
+
+    // Initialize.
+    SSTHeader sstHeader;
+    BloomFilter bloomFilter;
+    vector<DataIndexPtr> dataIndexes = vector<DataIndexPtr>();
+    uint32_t dataIndexStart = HEADER_SIZE + BLOOM_FILTER_SIZE;
+    uint32_t dataStart = HEADER_SIZE + BLOOM_FILTER_SIZE + DATA_INDEX_SIZE * keyNumber;
+
+    // Set the file position to tha start of data index.
+    out.seekp(dataIndexStart, ios::beg);
+
+    // Write data indexes into the file.
+    Node* p = getLowestHead();
+    Node* q = p;
+    uint32_t offset = dataStart;
+    while (p->next) {
+        LsmKey k = p->next->key;
+        LsmValue v = p->next->value;
+
+        out.write((char*)&k, sizeof(k));
+        out.write((char*)&offset, sizeof(offset));
+
+        bloomFilter.insert(k);
+        DataIndexPtr dataIndex = make_shared<DataIndex>(k, offset);
+        dataIndexes.push_back(dataIndex);
+
+        offset += v.size();
+        p = p->next;
+    }
+
+    // After the loop, p now points to the max key.
+    sstHeader = SSTHeader(timeToken, keyNumber, q->next->key, p->key);
+
+    // Set the file position to the beginning.
+    out.seekp(0, ios::beg);
+
+    // Write header and bloom filter into the file.
+    out.write((char*)&sstHeader, HEADER_SIZE);
+    out.write((char*)(bloomFilter.bitArray), BLOOM_FILTER_SIZE);
+
+    // Set the file position to the start of data.
+    out.seekp(dataStart, ios::beg);
+
+    // Write data into the file.
+    while (q->next) {
+        LsmValue v = q->next->value;
+        out.write((char*)&v[0], v.size());
+        q = q->next;
+    }
+
+    // Close the file.
+    out.close();
+
+    // Return an SSTable.
+    SSTPtr sst = make_shared<SSTable>(sstHeader, bloomFilter, dataIndexes);
+    return sst;
+}
+
+MemTable::Node* MemTable::getLowestHead() const {
+    Node* p = head;
+    while (p->down)
+        p = p->down;
+    return p;
 }

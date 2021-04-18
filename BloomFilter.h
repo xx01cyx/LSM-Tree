@@ -1,18 +1,17 @@
 #ifndef LSM_TREE_BLOOMFILTER_H
 #define LSM_TREE_BLOOMFILTER_H
 
+#include <cstring>
 #include "constants.h"
 #include "MurmurHash3.h"
 
 class BloomFilter {
-private:
+public:
     bool* bitArray;
 
-public:
     BloomFilter();
     ~BloomFilter();
-
-    bool hasKey(LsmKey k);
+    bool hasKey(LsmKey k) const;
     void insert(LsmKey k);
 };
 
