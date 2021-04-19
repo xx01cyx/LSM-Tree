@@ -115,14 +115,14 @@ void MemTable::reset() {
  * in the order of data index, header, bloom filter and data.
  * @return an SSTable that stores the cached information.
  */
-SSTPtr MemTable::writeToDisk(uint64_t timeToken) {
+SSTPtr MemTable::writeToDisk(TimeToken timeToken) {
 
     // Create the directory.
     string pathname = "./data/level-0/";
     utils::mkdir(pathname.c_str());
 
     // Open the output file.
-    string filename = pathname + "table" + to_string(level0Number++) + ".sst";
+    string filename = pathname + "table" + to_string(timeToken) + ".sst";
     ofstream out(filename, ios::out | ios::binary);
     if (!out.is_open()) {
         cerr << "Open file failed." << endl;
@@ -132,7 +132,7 @@ SSTPtr MemTable::writeToDisk(uint64_t timeToken) {
     // Initialize.
     SSTHeader sstHeader;
     BloomFilter bloomFilter;
-    vector<DataIndexPtr> dataIndexes = vector<DataIndexPtr>();
+    vector<DataIndex> dataIndexes = vector<DataIndex>();
     uint32_t dataIndexStart = HEADER_SIZE + BLOOM_FILTER_SIZE;
     uint32_t dataStart = HEADER_SIZE + BLOOM_FILTER_SIZE + DATA_INDEX_SIZE * keyNumber;
 
@@ -151,7 +151,7 @@ SSTPtr MemTable::writeToDisk(uint64_t timeToken) {
         out.write((char*)&offset, sizeof(offset));
 
         bloomFilter.insert(k);
-        DataIndexPtr dataIndex = make_shared<DataIndex>(k, offset);
+        DataIndex dataIndex = DataIndex(k, offset);
         dataIndexes.push_back(dataIndex);
 
         offset += v.size();
@@ -182,7 +182,7 @@ SSTPtr MemTable::writeToDisk(uint64_t timeToken) {
     out.close();
 
     // Return an SSTable.
-    SSTPtr sst = make_shared<SSTable>(sstHeader, bloomFilter, dataIndexes);
+    SSTPtr sst = make_shared<SSTable>(0, sstHeader, bloomFilter, dataIndexes);
     return sst;
 }
 

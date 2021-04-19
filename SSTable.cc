@@ -1,69 +1,60 @@
 #include "SSTable.h"
 
-SSTable::SSTable() {
-    dataIndexes = vector<DataIndexPtr>();
-}
 
-SSTable::SSTable(SSTHeader header,
-                 BloomFilter bloomFilter,
-                 vector<DataIndexPtr> dataIndexes) {
-    this->header = header;
-    this->bloomFilter = bloomFilter;
-    this->dataIndexes = dataIndexes;
-}
+SSTable::SSTable(uint64_t level, SSTHeader header, BloomFilter bloomFilter, vector<DataIndex> dataIndexes)
+    : level(level), header(header), bloomFilter(bloomFilter), dataIndexes(dataIndexes) {}
 
-LsmValue SSTable::get(LsmKey k, string filename) const {
+LsmValue SSTable::get(LsmKey k) const {
     if (!bloomFilter.hasKey(k))
         return "";
     int64_t index = find(k, dataIndexes, 0, header.keyNumber - 1);
     if (index < 0)
         return "";
-    return getFromDisk(index, filename);
+    return getValueFromDisk(index);
 }
 
 /**
  * Do not exactly return the target data index.
  * If the key cannot be found, `find` returns whatever is at the end of the recursion.
  */
-int64_t SSTable::find(LsmKey k, vector<DataIndexPtr> arr, int64_t start, int64_t end) const {
+int64_t SSTable::find(LsmKey k, vector<DataIndex> arr, int64_t start, int64_t end) const {
 
-    if (start >= end && arr[start]->key != k)
+    if (start >= end && arr[start].key != k)
         return -1;
 
-    uint64_t mid = (start + end) / 2;
-    if (k < arr[mid]->key)
+    uint64_t mid = start + (end - start) / 2;
+    if (k < arr[mid].key)
         return find(k, arr, start, mid-1);
-    if (k > arr[mid]->key)
+    if (k > arr[mid].key)
         return find(k, arr, mid+1, end);
 
     return mid;  // found
 
 }
 
-LsmValue SSTable::getFromDisk(int64_t index, string filename) const {
+LsmValue SSTable::getValueFromDisk(size_t index) const {
+
+    string filename = getFilename();
 
     // Open the SST file.
     ifstream table(filename, ios::in | ios::binary);
     if (!table) {
-        cerr << "Cannot open file `" << filename << '`.' << endl;
+        cerr << "Cannot open file `" << filename << "`." << endl;
         exit(-1);
     }
 
     // Find the start and end of the value.
-    uint32_t start = dataIndexes[index]->offset;
+    uint32_t start = dataIndexes[index].offset;
     uint32_t end;
     if (index != dataIndexes.size() - 1)
-        end = dataIndexes[index + 1]->offset;
+        end = dataIndexes[index + 1].offset;
     else {      // If `key` is the last key, set `end` as the length of the file.
         table.seekg(0, ios::end);
         end = table.tellg();
     }
 
     // Read value from the file.
-    string value;
-    value.resize(end - start);
-    table.seekg(start, ios::beg);
-    table.read((char*)&value[0], end - start);
+    LsmValue value = readValueFromFile(table, start, end, false);
 
     // Close the file.
     table.close();
@@ -71,6 +62,90 @@ LsmValue SSTable::getFromDisk(int64_t index, string filename) const {
     return value;
 }
 
-uint64_t SSTable::getTimeToken() const {
+/**
+ * Read all the key-value pairs of the SST from the disk without frequently altering
+ * file position. The result is stored in sstData.
+ */
+void SSTable::getValuesFromDisk(KVPair& sstData) const {
+
+    string filename = getFilename();
+    ifstream table(filename, ios::in | ios::binary);
+    if (!table) {
+        cerr << "Cannot open file `" << filename << "`." << endl;
+        exit(-1);
+    }
+
+    table.seekg(0, ios::end);
+    uint32_t fileLength = table.tellg();
+
+    uint32_t dataStart = HEADER_SIZE + BLOOM_FILTER_SIZE + DATA_INDEX_SIZE * header.keyNumber;
+    table.seekg(dataStart, ios::beg);
+
+    uint32_t start = dataStart;
+    uint32_t end;
+
+    auto it = dataIndexes.cbegin();
+    LsmKey key = (*it).key;
+    it++;
+    while (it != dataIndexes.cend()) {
+        end = (*it).offset;
+        LsmValue value = readValueFromFile(table, start, end, true);
+        sstData[key] = value;
+        start = end;
+        key = (*it).key;    // Get key for the next loop.
+        it++;
+    }
+
+    // Set the last k-v pair.
+    end = fileLength;
+    LsmValue value = readValueFromFile(table, start, end, true);
+    sstData[key] = value;
+}
+
+/**
+ * Read a singleton value from an open SST file based on its offset.
+ * @param file: An open SST file.
+ * @param startOffset: The start offset of the value in the file.
+ * @param endOffset: The end offset of the value in the file.
+ * @param multiValue: Set true if reading a contiguous sequence of values. Set false otherwise.
+ * Note that the start position must have been specified before if the param is set true.
+ * @return The value read from the file.
+ */
+LsmValue SSTable::readValueFromFile(ifstream& table, uint32_t startOffset, uint32_t endOffset, bool multiValue) const {
+    LsmValue value;
+    uint32_t length = endOffset - startOffset;
+    value.resize(length);
+    if (!multiValue)
+        table.seekg(startOffset, ios::beg);
+    table.read((char*)&value[0], length);
+    return value;
+}
+
+
+string SSTable::getFilename() const {
+    return "./data/level-" + to_string(level) + "/table" + to_string(header.timeToken) + ".sst";
+}
+
+uint64_t SSTable::getLevel() const {
+    return level;
+}
+
+TimeToken SSTable::getTimeToken() const {
     return header.timeToken;
+}
+
+LsmKey SSTable::getMinKey() const {
+    return header.minKey;
+}
+
+LsmKey SSTable::getMaxKey() const {
+    return header.maxKey;
+}
+
+size_t SSTable::getKeyNumber() const {
+    return header.keyNumber;
+}
+
+vector<DataIndex> SSTable::getDataIndexes() const {
+    return dataIndexes;
 }

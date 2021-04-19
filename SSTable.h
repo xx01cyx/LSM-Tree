@@ -5,19 +5,20 @@
 #include <fstream>
 #include <vector>
 #include <memory>
+#include <unordered_map>
 #include "BloomFilter.h"
 #include "constants.h"
 
 using namespace std;
 
 struct SSTHeader {
-    uint64_t timeToken;
-    uint64_t keyNumber;
+    TimeToken timeToken;
+    size_t keyNumber;
     LsmKey minKey;
     LsmKey maxKey;
 
     SSTHeader() {}
-    SSTHeader(uint64_t timeToken, uint64_t keyNumber,
+    SSTHeader(TimeToken timeToken, size_t keyNumber,
               LsmKey minKey, LsmKey maxKey)
             : timeToken(timeToken), keyNumber(keyNumber),
               minKey(minKey), maxKey(maxKey) {}
@@ -32,26 +33,35 @@ struct DataIndex {
             : key(key), offset(offset) {}
 };
 
-typedef shared_ptr<DataIndex> DataIndexPtr;
+typedef shared_ptr<unordered_map<LsmKey, LsmValue>> DataPtr;
 
 class SSTable {
 
 private:
-    SSTHeader header;
-    BloomFilter bloomFilter;
-    vector<DataIndexPtr> dataIndexes;
+    const uint64_t level;
+    const SSTHeader header;
+    const BloomFilter bloomFilter;
+    const vector<DataIndex> dataIndexes;
 
-    int64_t find(LsmKey k, vector<DataIndexPtr> arr, int64_t start, int64_t end) const;
-    LsmValue getFromDisk(int64_t index, string filename) const;
+    int64_t find(LsmKey k, vector<DataIndex> arr, int64_t start, int64_t end) const;
+    LsmValue getValueFromDisk(size_t index) const;
+    LsmValue readValueFromFile(ifstream& table, uint32_t startOffset, uint32_t endOffset, bool multiValue) const;
 
 public:
-    SSTable();
-    SSTable(SSTHeader sstHeader,
+    SSTable(uint64_t level,
+            SSTHeader sstHeader,
             BloomFilter bloomFilter,
-            vector<DataIndexPtr> dataIndexes);
+            vector<DataIndex> dataIndexes);
 
-    LsmValue get(LsmKey k, string filename) const;
-    uint64_t getTimeToken() const;
+    LsmValue get(LsmKey k) const;
+    uint64_t getLevel() const;
+    TimeToken getTimeToken() const;
+    LsmKey getMinKey() const;
+    LsmKey getMaxKey() const;
+    size_t getKeyNumber() const;
+    vector<DataIndex> getDataIndexes() const;
+    string getFilename() const;
+    void getValuesFromDisk(KVPair& sstData) const;
 
 };
 

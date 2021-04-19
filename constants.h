@@ -2,9 +2,12 @@
 #define LSM_TREE_CONSTANTS_H
 
 #include <string>
+#include <unordered_map>
 
 typedef uint64_t LsmKey;
 typedef std::string LsmValue;
+typedef uint64_t TimeToken;
+typedef std::unordered_map<LsmKey, LsmValue> KVPair;
 
 #define DELETE_SIGN "~DELETED~"
 
