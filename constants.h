@@ -6,7 +6,7 @@
 
 typedef uint64_t LsmKey;
 typedef std::string LsmValue;
-typedef uint64_t TimeToken;
+typedef uint64_t TimeStamp;
 typedef std::unordered_map<LsmKey, LsmValue> KVPair;
 
 #define DELETE_SIGN "~DELETED~"

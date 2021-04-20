@@ -6,7 +6,7 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir)
     memTableSize = HEADER_SIZE + BLOOM_FILTER_SIZE;
     ssTables = unordered_map<size_t, shared_ptr<vector<SSTPtr>>>();
     ssTables[0] = make_shared<vector<SSTPtr>>();
-    timeToken = 1;
+    timeStamp = 1;
 }
 
 KVStore::~KVStore() {}
@@ -19,7 +19,7 @@ void KVStore::put(uint64_t key, const std::string &s)
 {
     if (memTableOverflow(s)) {
         memToDisk();
-        timeToken++;
+        timeStamp++;
 
         // Update states
         memTable->reset();
@@ -77,6 +77,12 @@ bool KVStore::del(uint64_t key)
 void KVStore::reset()
 {
     memTable->reset();
+    char* pathname = "./data/";
+    utils::rmdir(pathname);
+    memTableSize = HEADER_SIZE + BLOOM_FILTER_SIZE;
+    ssTables.clear();
+    ssTables[0] = make_shared<vector<SSTPtr>>();
+    timeStamp = 1;
 }
 
 bool KVStore::memTableOverflow(LsmValue v) {
@@ -88,7 +94,7 @@ bool KVStore::memTableOverflow(LsmValue v) {
  * Truncate memTable.
  */
 void KVStore::memToDisk() {
-    SSTPtr sst = memTable->writeToDisk(timeToken);   // Write the data into disk (level 0)
+    SSTPtr sst = memTable->writeToDisk(timeStamp);   // Write the data into disk (level 0)
     ssTables[0]->push_back(sst);    // Append to level 0 cache
 }
 
@@ -99,7 +105,7 @@ LsmValue KVStore::getValueFromDisk(LsmKey key) {
     if (levelNumber == 0)   // All data are stored in memTable.
         return "";
 
-    TimeToken maxTimeToken = 0;
+    TimeStamp maxTimeStamp = 0;
     LsmValue newestValue = "";
 
     // Read from L0.
@@ -107,7 +113,7 @@ LsmValue KVStore::getValueFromDisk(LsmKey key) {
     uint32_t L0SSTNumber = L0SSTs.size();
     for (size_t i = 0; i < L0SSTNumber; ++i) {
         SSTPtr sst = L0SSTs[i];
-        getNewestValue(sst, key, maxTimeToken, newestValue);
+        getNewestValue(sst, key, maxTimeStamp, newestValue);
     }
 
     // Read from the rest levels.
@@ -117,7 +123,7 @@ LsmValue KVStore::getValueFromDisk(LsmKey key) {
             continue;
         uint32_t sstIndex = sstBinarySearch(levelSSTs, key, 0, levelSSTs.size() - 1);
         SSTPtr targetSST = levelSSTs[sstIndex];
-        getNewestValue(targetSST, key, maxTimeToken, newestValue);
+        getNewestValue(targetSST, key, maxTimeStamp, newestValue);
     }
 
     return newestValue;
@@ -125,12 +131,12 @@ LsmValue KVStore::getValueFromDisk(LsmKey key) {
 }
 
 void KVStore::getNewestValue(const SSTPtr sst, LsmKey key,
-                             TimeToken& maxTimeToken, LsmValue& newestValue) {
+                             TimeStamp& maxTimeStamp, LsmValue& newestValue) {
     LsmValue newValue = sst->get(key);
-    TimeToken newTimeToken = sst->getTimeToken();
-    if (newValue.length() != 0 && newTimeToken > maxTimeToken) {
+    TimeStamp newTimeStamp = sst->getTimeStamp();
+    if (newValue.length() != 0 && newTimeStamp > maxTimeStamp) {
         newestValue = newValue;
-        maxTimeToken = newTimeToken;
+        maxTimeStamp = newTimeStamp;
     }
 }
 
@@ -167,7 +173,7 @@ void KVStore::compact0() {
     SSTs.insert(SSTs.end(), overlapSSTs.begin(), overlapSSTs.end());
 
     // Sort the keys and write the data into the disk.
-    vector<SSTPtr> mergedSSTs = merge0(SSTs);
+    vector<SSTPtr> mergedSSTs = merge0AndWriteToDisk(SSTs);
 
     // Reconstruct L1 in memory and delete corresponding files in the disk.
     reconstructLowerLevel(minOverlapIndex, maxOverlapIndex, mergedSSTs, 1);
@@ -204,20 +210,6 @@ void KVStore::compact(size_t upperLevel, uint32_t compactNumber) {
     // Reconstruct the upper level
 }
 
-/**
- * Compact one SST from the upper level to the lower level.
- * Reconstruct the lower level in both the memory and the disk.
- * @param sst: The upper level SST need compact.
- * @param lowerLevel: The lower level where the SST is to compact into.
- */
-void KVStore::compactOneSST(SSTPtr sst, size_t lowerLevel) {
-    int64_t minOverlapIndex = -1;
-    int64_t maxOverlapIndex = -1;
-    vector<SSTPtr> overlapSSTs = getOverlapSSTs(sst->getMinKey(), sst->getMaxKey(), lowerLevel,
-                                             minOverlapIndex, maxOverlapIndex);
-    vector<SSTPtr> mergedSSTs = merge(sst, overlapSSTs);
-    reconstructLowerLevel(minOverlapIndex, maxOverlapIndex, mergedSSTs, lowerLevel);
-}
 
 /**
  * Find overlapping SSTables in the lower level for a compaction. The overlapping
@@ -255,6 +247,12 @@ vector<SSTPtr> KVStore::getOverlapSSTs(LsmKey minKey, LsmKey maxKey, size_t leve
     }
 
     return overlapSSTs;
+}
+
+void KVStore::compactWithoutMerging(const SSTPtr upperLevelSST, size_t lowerLevel) {
+    vector<SSTPtr> lowerLevelSSTs = *ssTables[lowerLevel];
+    uint32_t insertIndex = sstBinarySearch(lowerLevelSSTs, upperLevelSST->getMinKey(), 0, lowerLevelSSTs.size());
+
 }
 
 
@@ -312,12 +310,12 @@ KVPair KVStore::readDataFromDisk(const vector<SSTPtr>& SSTs) {
     // Sort the SSTs according to their time tokens so that the value of the same key
     // in a newer SST will always overwrite the previous one.
 
-    auto sortByTimeToken = [](const SSTPtr sstA, const SSTPtr sstB) {
-        return sstA->getTimeToken() < sstB->getTimeToken();
+    auto sortByTimeStamp = [](const SSTPtr sstA, const SSTPtr sstB) {
+        return sstA->getTimeStamp() < sstB->getTimeStamp();
     };
 
     vector<SSTPtr> tempSSTs(SSTs);
-    sort(tempSSTs.begin(), tempSSTs.end(), sortByTimeToken);
+    sort(tempSSTs.begin(), tempSSTs.end(), sortByTimeStamp);
 
     KVPair sstData;
     for (auto sst : tempSSTs)
@@ -326,15 +324,26 @@ KVPair KVStore::readDataFromDisk(const vector<SSTPtr>& SSTs) {
     return sstData;
 }
 
+TimeStamp KVStore::getMaxTimeStamp(const vector<SSTPtr> &SSTs) {
+    TimeStamp maxTimeStamp = 0;
+    for (const auto& SST : SSTs) {
+        TimeStamp currentTimeStamp = SST->getTimeStamp();
+        if (currentTimeStamp > maxTimeStamp)
+            maxTimeStamp = currentTimeStamp;
+    }
+    return maxTimeStamp;
+}
+
 /**
  * Merge sort the SSTs need compact in L0 and L1 using priority queue.
  * Write the new SSTs into the disk.
  * @param SSTs: SSTs need compact in L0 and L1.
  * @return New SSTs generated during compaction.
  */
-vector<SSTPtr> KVStore::merge0(const vector<SSTPtr> &SSTs) {
+vector<SSTPtr> KVStore::merge0AndWriteToDisk(const vector<SSTPtr> &SSTs) {
 
     KVPair data = readDataFromDisk(SSTs);
+    TimeStamp maxTimeStamp = getMaxTimeStamp(SSTs);
 
     vector<SSTPtr> newSSTs;
     priority_queue<KeyRef, vector<KeyRef>, KeyRefComparator> pq;
@@ -352,24 +361,10 @@ vector<SSTPtr> KVStore::merge0(const vector<SSTPtr> &SSTs) {
         vector<DataIndex> currentDataIndexes = currentSST->getDataIndexes();
         LsmKey currentKey = currentDataIndexes[currentIndex].key;
 
-        if (!sortedKeys.empty() && currentKey != sortedKeys.back()) {
-            size_t sizeIncrement = DATA_INDEX_SIZE + data[currentKey].size();
-            if (currentSize + sizeIncrement > MAX_SSTABLE_SIZE) {
-                // Generate a new SST.
-                newSSTs.push_back(generateNewSST(sortedKeys, data, 1));
-
-                // Update states.
-                sortedKeys.clear();
-                currentSize = HEADER_SIZE + BLOOM_FILTER_SIZE;
-                timeToken++;
-            }
-
-            sortedKeys.push_back(currentKey);
-            currentSize += sizeIncrement;
-        }
-
         if (sortedKeys.empty())
             sortedKeys.push_back(currentKey);
+
+        conditionalPushAndWrite(currentKey, sortedKeys, currentSize, data, newSSTs, 1);
 
         pq.pop();
         if (currentIndex != currentDataIndexes.size() - 1)
@@ -379,40 +374,41 @@ vector<SSTPtr> KVStore::merge0(const vector<SSTPtr> &SSTs) {
     // Pack the remaining data into an SST.
     if (!sortedKeys.empty()) {
         newSSTs.push_back(generateNewSST(sortedKeys, data, 1));
-        timeToken++;
+        timeStamp++;
     }
 
     return newSSTs;
 }
 
-/**
- * Merge sort the SSTs need compact in the upper level and the lower level.
- * Write the new SSTs into the disk.
- * @param upperLevelSST: The upper level SST that needs compact.
- * @param lowerLevelSSTs: The lower level SSTs that needs compact.
- * @return New SSTs generated during compaction.
- */
-vector<SSTPtr> KVStore::merge(const SSTPtr upperLevelSST, const vector<SSTPtr>& lowerLevelSSTs) {
+inline bool operator< (const KeyRef& ref1, const KeyRef& ref2) {
+    LsmKey key1 = (ref1.first)->getDataIndexes()[ref1.second].key;
+    LsmKey key2 = (ref2.first)->getDataIndexes()[ref2.second].key;
+    if (key1 == key2)
+        return (ref1.first)->getTimeStamp() < (ref2.first)->getTimeStamp();
+    return key1 < key2;
+}
 
-//    vector<LsmKey> upperLevelKeys = upperLevelSST->getKeys();
-//    vector<LsmKey> lowerLevelKeys;
-//    for (const auto& lowerLevelSST : lowerLevelSSTs)
-//        lowerLevelSST->getKeys(lowerLevelKeys);
-//
-//    vector<LsmKey> sortedKeys;
-//    size_t currentSize = HEADER_SIZE + BLOOM_FILTER_SIZE;
-//
-//    vector<LsmKey>::const_iterator upperIt = upperLevelKeys.cbegin();
-//    vector<LsmKey>::const_iterator lowerIt = lowerLevelKeys.cend();
-//
-//    while (upperIt != upperLevelKeys.cend() && lowerIt != lowerLevelKeys.cend()) {
-//        if (*upperIt < *lowerIt)
-//            sortedKeys.push_back(*upperIt);
-//
-//    }
 
-    vector<SSTPtr> newSSTs;
-    return newSSTs;
+
+void KVStore::conditionalPushAndWrite(LsmKey key, vector<LsmKey> &sortedKeys, size_t &currentSize,const KVPair& data,
+                                      vector<SSTPtr> &newSSTs, size_t lowerLevel) {
+
+    if (!sortedKeys.empty() && sortedKeys.back() != key) {      // conditionally push key
+        size_t sizeIncrement = DATA_INDEX_SIZE + data.at(key).size();
+
+        if (currentSize + sizeIncrement > MAX_SSTABLE_SIZE) {   // conditionally write data
+            // Generate a new SST.
+            newSSTs.push_back(generateNewSST(sortedKeys, data, lowerLevel));
+
+            // Update states.
+            sortedKeys.clear();
+            currentSize = HEADER_SIZE + BLOOM_FILTER_SIZE;
+            timeStamp++;
+        }
+
+        sortedKeys.push_back(key);
+        currentSize += sizeIncrement;
+    }
 }
 
 /**
@@ -428,7 +424,8 @@ SSTPtr KVStore::generateNewSST(const vector<LsmKey> &keys, const KVPair& data, s
     utils::mkdir(pathname.c_str());
 
     // Open the output file.
-    string filename = pathname + "table" + to_string(timeToken) + ".sst";
+    string filename = pathname + "table-" + to_string(timeStamp)
+                      + "-" + to_string(keys.front()) + ".sst";
     ofstream out(filename, ios::out | ios::binary);
     if (!out.is_open()) {
         cerr << "Open file failed." << endl;
@@ -437,7 +434,7 @@ SSTPtr KVStore::generateNewSST(const vector<LsmKey> &keys, const KVPair& data, s
 
     // Initialize.
     size_t keyNumber = keys.size();
-    SSTHeader sstHeader = SSTHeader(timeToken, keyNumber, keys.front(), keys.back());
+    SSTHeader sstHeader = SSTHeader(timeStamp, keyNumber, keys.front(), keys.back());
     BloomFilter bloomFilter;
     vector<DataIndex> dataIndexes = vector<DataIndex>();
     uint32_t dataIndexStart = HEADER_SIZE + BLOOM_FILTER_SIZE;

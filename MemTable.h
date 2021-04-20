@@ -43,7 +43,7 @@ public:
     LsmValue get(LsmKey k);
     bool del(LsmKey k);
     void reset();
-    SSTPtr writeToDisk(TimeToken timeToken);
+    SSTPtr writeToDisk(TimeStamp timeStamp);
 };
 
 

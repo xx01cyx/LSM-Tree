@@ -123,15 +123,18 @@ LsmValue SSTable::readValueFromFile(ifstream& table, uint32_t startOffset, uint3
 
 
 string SSTable::getFilename() const {
-    return "./data/level-" + to_string(level) + "/table" + to_string(header.timeToken) + ".sst";
+    return "./data/level-" + to_string(level)
+            + "/table-" + to_string(header.timeStamp)
+            + "-" + to_string(header.minKey)
+            + ".sst";
 }
 
 size_t SSTable::getLevel() const {
     return level;
 }
 
-TimeToken SSTable::getTimeToken() const {
-    return header.timeToken;
+TimeStamp SSTable::getTimeStamp() const {
+    return header.timeStamp;
 }
 
 LsmKey SSTable::getMinKey() const {

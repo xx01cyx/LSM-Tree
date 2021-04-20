@@ -12,15 +12,15 @@
 using namespace std;
 
 struct SSTHeader {
-    TimeToken timeToken;
+    TimeStamp timeStamp;
     size_t keyNumber;
     LsmKey minKey;
     LsmKey maxKey;
 
     SSTHeader() {}
-    SSTHeader(TimeToken timeToken, size_t keyNumber,
+    SSTHeader(TimeStamp timeStamp, size_t keyNumber,
               LsmKey minKey, LsmKey maxKey)
-            : timeToken(timeToken), keyNumber(keyNumber),
+            : timeStamp(timeStamp), keyNumber(keyNumber),
               minKey(minKey), maxKey(maxKey) {}
 };
 
@@ -55,7 +55,7 @@ public:
 
     LsmValue get(LsmKey k) const;
     size_t getLevel() const;
-    TimeToken getTimeToken() const;
+    TimeStamp getTimeStamp() const;
     LsmKey getMinKey() const;
     LsmKey getMaxKey() const;
     size_t getKeyNumber() const;

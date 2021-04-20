@@ -115,14 +115,17 @@ void MemTable::reset() {
  * in the order of data index, header, bloom filter and data.
  * @return an SSTable that stores the cached information.
  */
-SSTPtr MemTable::writeToDisk(TimeToken timeToken) {
+SSTPtr MemTable::writeToDisk(TimeStamp timeStamp) {
 
     // Create the directory.
     string pathname = "./data/level-0/";
     utils::mkdir(pathname.c_str());
 
     // Open the output file.
-    string filename = pathname + "table" + to_string(timeToken) + ".sst";
+    Node* q = getLowestHead();
+    LsmKey minKey = q->next->key;
+    string filename = pathname + "table-" + to_string(timeStamp)
+                      + "-" + to_string(minKey) + ".sst";
     ofstream out(filename, ios::out | ios::binary);
     if (!out.is_open()) {
         cerr << "Open file failed." << endl;
@@ -140,8 +143,7 @@ SSTPtr MemTable::writeToDisk(TimeToken timeToken) {
     out.seekp(dataIndexStart, ios::beg);
 
     // Write data indexes into the file.
-    Node* p = getLowestHead();
-    Node* q = p;
+    Node* p = q;
     uint32_t offset = dataStart;
     while (p->next) {
         LsmKey k = p->next->key;
@@ -159,7 +161,7 @@ SSTPtr MemTable::writeToDisk(TimeToken timeToken) {
     }
 
     // After the loop, p now points to the max key.
-    sstHeader = SSTHeader(timeToken, keyNumber, q->next->key, p->key);
+    sstHeader = SSTHeader(timeStamp, keyNumber, minKey, p->key);
 
     // Set the file position to the beginning.
     out.seekp(0, ios::beg);
