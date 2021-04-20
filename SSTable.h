@@ -62,9 +62,17 @@ public:
     vector<DataIndex> getDataIndexes() const;
     string getFilename() const;
     void getValuesFromDisk(KVPair& sstData) const;
-
 };
 
 typedef shared_ptr<SSTable> SSTPtr;
+typedef pair<SSTPtr, size_t> KeyRef;
+
+struct KeyRefComparator {
+    bool operator() (const KeyRef& ref1, const KeyRef& ref2) {
+        LsmKey key1 = (ref1.first)->getDataIndexes()[ref1.second].key;
+        LsmKey key2 = (ref2.first)->getDataIndexes()[ref2.second].key;
+        return key1 > key2;
+    }
+};
 
 #endif //LSM_TREE_SSTABLE_H

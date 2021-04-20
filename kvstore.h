@@ -24,9 +24,12 @@ private:
     void memToDisk();
     LsmValue getValueFromDisk(LsmKey key);
     void getNewestValue(const SSTPtr sst, LsmKey key, TimeToken& maxTimeToken, LsmValue& newestValue);
+    uint32_t levelOverflow(size_t level);
 
-    bool levelOverflow(size_t level);
     void compact0();
+    void compact(size_t upperLevel, uint32_t compactNumber);
+    void compactOneSST(SSTPtr sst, size_t lowerLevel);
+
     void getCompact0Range(LsmKey& minKey, LsmKey& maxKey);
     vector<SSTPtr> getOverlapSSTs(LsmKey minKey, LsmKey maxKey, size_t level,
                                   int64_t& minOverlapIndex, int64_t& maxOverlapIndex);
@@ -34,6 +37,7 @@ private:
                                const vector<SSTPtr>& newSSTs, size_t lowerLevel);
     KVPair readDataFromDisk(const vector<SSTPtr>& SSTs);
     vector<SSTPtr> merge0(const vector<SSTPtr>& SSTs);
+    vector<SSTPtr> merge(const SSTPtr upperLevelSST, const vector<SSTPtr>& lowerLevelSSTs);
     SSTPtr generateNewSST(const vector<LsmKey>& keys, const KVPair& data, size_t level);
     uint32_t sstBinarySearch(const vector<SSTPtr>& SSTs, LsmKey key,
                              uint32_t left, uint32_t right);
