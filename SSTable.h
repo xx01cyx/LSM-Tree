@@ -38,7 +38,7 @@ typedef shared_ptr<unordered_map<LsmKey, LsmValue>> DataPtr;
 class SSTable {
 
 private:
-    const uint64_t level;
+    const size_t level;
     const SSTHeader header;
     const BloomFilter bloomFilter;
     const vector<DataIndex> dataIndexes;
@@ -48,13 +48,13 @@ private:
     LsmValue readValueFromFile(ifstream& table, uint32_t startOffset, uint32_t endOffset, bool multiValue) const;
 
 public:
-    SSTable(uint64_t level,
+    SSTable(size_t level,
             SSTHeader sstHeader,
             BloomFilter bloomFilter,
             vector<DataIndex> dataIndexes);
 
     LsmValue get(LsmKey k) const;
-    uint64_t getLevel() const;
+    size_t getLevel() const;
     TimeToken getTimeToken() const;
     LsmKey getMinKey() const;
     LsmKey getMaxKey() const;

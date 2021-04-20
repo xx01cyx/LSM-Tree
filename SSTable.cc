@@ -1,7 +1,7 @@
 #include "SSTable.h"
 
 
-SSTable::SSTable(uint64_t level, SSTHeader header, BloomFilter bloomFilter, vector<DataIndex> dataIndexes)
+SSTable::SSTable(size_t level, SSTHeader header, BloomFilter bloomFilter, vector<DataIndex> dataIndexes)
     : level(level), header(header), bloomFilter(bloomFilter), dataIndexes(dataIndexes) {}
 
 LsmValue SSTable::get(LsmKey k) const {
@@ -126,7 +126,7 @@ string SSTable::getFilename() const {
     return "./data/level-" + to_string(level) + "/table" + to_string(header.timeToken) + ".sst";
 }
 
-uint64_t SSTable::getLevel() const {
+size_t SSTable::getLevel() const {
     return level;
 }
 
