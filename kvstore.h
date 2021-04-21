@@ -20,31 +20,37 @@ private:
     unordered_map<size_t, shared_ptr<vector<SSTPtr>>> ssTables;
     TimeStamp timeStamp;
 
-    bool memTableOverflow(LsmValue v);
+    bool memTableOverflow(const LsmValue& v) const;
     void memToDisk();
     LsmValue getValueFromDisk(LsmKey key);
-    void getNewestValue(const SSTPtr sst, LsmKey key, TimeStamp& maxTimeStamp, LsmValue& newestValue);
     uint32_t levelOverflow(size_t level);
 
     void compact0();
-    void compact(size_t upperLevel, uint32_t compactNumber);
-    void compactOneSST(SSTPtr sst, size_t lowerLevel);
-    void compactWithoutMerging(SSTPtr upperLevelSST, size_t lowerLevel);
+    void compact(size_t upperLevel, uint32_t overflowNumber);
+
     void getCompact0Range(LsmKey& minKey, LsmKey& maxKey);
     vector<SSTPtr> getOverlapSSTs(LsmKey minKey, LsmKey maxKey, size_t level,
                                   int64_t& minOverlapIndex, int64_t& maxOverlapIndex);
+    vector<SSTPtr> getCompactSSTs(size_t upperLevel, uint32_t overflowNumber);
+    void compactOneSST(const SSTPtr& sst, size_t lowerLevel);
+
+    static vector<SSTPtr> merge0AndWriteToDisk(const vector<SSTPtr>& SSTs, TimeStamp maxTimeStamp);
+    static vector<SSTPtr> mergeAndWriteToDisk(SSTPtr upperLevelSST, const vector<SSTPtr>& lowerLevelSSTs, TimeStamp maxTimeStamp);
+
+    // Reconstruction
+    void reconstructL0();
+    void reconstructUpperLevel(size_t upperLevel, const vector<SSTPtr>& compactSSTs);
     void reconstructLowerLevel(uint32_t minOverlapIndex, uint32_t maxOverlapIndex,
                                const vector<SSTPtr>& newSSTs, size_t lowerLevel);
-    void reconstructUpperLevel(size_t upperLevel);
-    KVPair readDataFromDisk(const vector<SSTPtr>& SSTs);
-    TimeStamp getMaxTimeStamp(const vector<SSTPtr>& SSTs);
-    vector<SSTPtr> merge0AndWriteToDisk(const vector<SSTPtr>& SSTs);
-    vector<SSTPtr> mergeAndWriteToDisk(SSTPtr upperLevelSST, const vector<SSTPtr>& lowerLevelSSTs);
-    void conditionalPushAndWrite(LsmKey key, vector<LsmKey>& sortedKeys, size_t& currentSize, const KVPair& data,
-                                 vector<SSTPtr>& newSSTs, size_t lowerLevel);
-    SSTPtr generateNewSST(const vector<LsmKey>& keys, const KVPair& data, size_t level);
-    uint32_t sstBinarySearch(const vector<SSTPtr>& SSTs, LsmKey key, uint32_t left, uint32_t right);
-    void clearL0();
+
+    // Compaction utils
+    static uint32_t sstBinarySearch(const vector<SSTPtr>& SSTs, LsmKey key, uint32_t left, uint32_t right);
+    static TimeStamp getMaxTimeStamp(const vector<SSTPtr>& SSTs);
+    static TimeStamp getMaxTimeStamp(const SSTPtr& oneSST, const vector<SSTPtr>& SSTs);
+    static KVPair readDataFromDisk(const vector<SSTPtr>& SSTs);
+    static SSTPtr generateNewSST(const vector<LsmKey>& keys, const KVPair& data, size_t level, TimeStamp maxTimeStamp);
+    static void removeSSTFromDisk(const SSTPtr& delSST);
+
 
 public:
     KVStore(const std::string &dir);

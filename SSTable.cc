@@ -152,3 +152,11 @@ size_t SSTable::getKeyNumber() const {
 vector<DataIndex> SSTable::getDataIndexes() const {
     return dataIndexes;
 }
+
+vector<LsmKey> SSTable::getKeys() const {
+    vector<LsmKey> keys;
+    for (const auto& dataIndex : dataIndexes) {
+        keys.push_back(dataIndex.key);
+    }
+    return keys;
+}

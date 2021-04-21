@@ -61,11 +61,24 @@ public:
     size_t getKeyNumber() const;
     vector<DataIndex> getDataIndexes() const;
     string getFilename() const;
+    vector<LsmKey> getKeys() const;
     void getValuesFromDisk(KVPair& sstData) const;
 };
 
 typedef shared_ptr<SSTable> SSTPtr;
 typedef pair<SSTPtr, size_t> KeyRef;
+
+struct SSTComparator {
+    bool operator() (const SSTPtr sst1, const SSTPtr sst2) {
+        TimeStamp stamp1 = sst1->getTimeStamp();
+        TimeStamp stamp2 = sst2->getTimeStamp();
+        LsmKey minKey1 = sst1->getMinKey();
+        LsmKey minKey2 = sst2->getMinKey();
+        if (stamp1 != stamp2)
+            return stamp1 < stamp2;
+        return minKey1 < minKey2;
+    }
+};
 
 struct KeyRefComparator {
     bool operator() (const KeyRef& ref1, const KeyRef& ref2) {
