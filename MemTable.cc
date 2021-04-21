@@ -122,10 +122,7 @@ SSTPtr MemTable::writeToDisk(TimeStamp timeStamp) {
     utils::mkdir(pathname.c_str());
 
     // Open the output file.
-    Node* q = getLowestHead();
-    LsmKey minKey = q->next->key;
-    string filename = pathname + "table-" + to_string(timeStamp)
-                      + "-" + to_string(minKey) + ".sst";
+    string filename = pathname + "table-" + to_string(timeStamp) + ".sst";
     ofstream out(filename, ios::out | ios::binary);
     if (!out.is_open()) {
         cerr << "Open file failed." << endl;
@@ -143,6 +140,7 @@ SSTPtr MemTable::writeToDisk(TimeStamp timeStamp) {
     out.seekp(dataIndexStart, ios::beg);
 
     // Write data indexes into the file.
+    Node* q = getLowestHead();
     Node* p = q;
     uint32_t offset = dataStart;
     while (p->next) {
@@ -161,7 +159,7 @@ SSTPtr MemTable::writeToDisk(TimeStamp timeStamp) {
     }
 
     // After the loop, p now points to the max key.
-    sstHeader = SSTHeader(timeStamp, keyNumber, minKey, p->key);
+    sstHeader = SSTHeader(timeStamp, keyNumber, q->next->key, p->key);
 
     // Set the file position to the beginning.
     out.seekp(0, ios::beg);
@@ -183,9 +181,15 @@ SSTPtr MemTable::writeToDisk(TimeStamp timeStamp) {
     // Close the file.
     out.close();
 
-    // Return an SSTable.
+    // Create an SST in the memory.
     SSTPtr sst = make_shared<SSTable>(0, sstHeader, bloomFilter, dataIndexes);
+
+    // Rename the file.
+    string newFilename = sst->getFilename();
+    rename(filename.c_str(), newFilename.c_str());
+
     return sst;
+
 }
 
 MemTable::Node* MemTable::getLowestHead() const {

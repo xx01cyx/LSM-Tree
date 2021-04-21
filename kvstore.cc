@@ -601,7 +601,9 @@ SSTPtr KVStore::generateNewSST(const vector<LsmKey> &keys, const KVPair& data,
 
     // Open the output file.
     string filename = pathname + "table-" + to_string(maxTimeStamp)
-                      + "-" + to_string(keys.front()) + ".sst";
+                      + "-" + to_string(keys.front())
+                      + "-" + to_string(keys.back())
+                      + ".sst";
     ofstream out(filename, ios::out | ios::binary);
     if (!out.is_open()) {
         cerr << "Open file failed." << endl;

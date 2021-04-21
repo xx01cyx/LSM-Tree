@@ -126,6 +126,7 @@ string SSTable::getFilename() const {
     return "./data/level-" + to_string(level)
             + "/table-" + to_string(header.timeStamp)
             + "-" + to_string(header.minKey)
+            + "-" + to_string(header.maxKey)
             + ".sst";
 }
 
