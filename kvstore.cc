@@ -65,8 +65,7 @@ bool KVStore::del(uint64_t key)
 {
     LsmValue value = get(key);
     bool find = (value.length() != 0) && (value != DELETE_SIGN);
-    if (find)
-        memTable->put(key, DELETE_SIGN);
+    memTable->put(key, DELETE_SIGN);
     return find;
 }
 
