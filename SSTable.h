@@ -80,11 +80,19 @@ struct SSTComparator {
     }
 };
 
-struct KeyRefComparator {
+struct KeyRefGreaterThan {
     bool operator() (const KeyRef& ref1, const KeyRef& ref2) {
         LsmKey key1 = (ref1.first)->getDataIndexes()[ref1.second].key;
         LsmKey key2 = (ref2.first)->getDataIndexes()[ref2.second].key;
         return key1 > key2;
+    }
+};
+
+struct KeyRefLessThan {
+    bool operator() (const KeyRef& ref1, const KeyRef& ref2) {
+        LsmKey key1 = (ref1.first)->getDataIndexes()[ref1.second].key;
+        LsmKey key2 = (ref2.first)->getDataIndexes()[ref2.second].key;
+        return key1 < key2;
     }
 };
 
