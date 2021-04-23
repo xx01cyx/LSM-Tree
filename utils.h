@@ -22,7 +22,7 @@ namespace utils{
      * @param path directory to be checked.
      * @return ture if directory exists, false otherwise.
      */
-    inline bool dirExists(std::string path){
+    static inline bool dirExists(std::string path){
         struct stat st;
         int ret = stat(path.c_str(), &st);
         return ret == 0 && st.st_mode & S_IFDIR;
@@ -34,8 +34,8 @@ namespace utils{
      * @param ret all files name in directory.
      * @return files number.
      */
-    #if defined(_WIN32) && !defined(__MINGW32__) 
-    int scanDir(std::string path, std::vector<std::string> &ret){
+#if defined(_WIN32) && !defined(__MINGW32__)
+    static inline int scanDir(std::string path, std::vector<std::string> &ret){
         std::string extendPath;
         if(path[path.size() - 1] == '/'){
             extendPath = path + "*";
@@ -43,7 +43,7 @@ namespace utils{
         else{
             extendPath = path + "/*";
         }
-        WIN32_FIND_DATA fd;
+        WIN32_FIND_DATAA fd;
         HANDLE h = FindFirstFileA(extendPath.c_str(), &fd);
         if(h == INVALID_HANDLE_VALUE){
             return 0;
@@ -57,11 +57,12 @@ namespace utils{
                 break;
             }
         }
+        FindClose(h);
         return ret.size();
     }
-    #endif
-    #if defined(linux) || defined(__MINGW32__) || defined(__APPLE__)
-    inline int scanDir(std::string path, std::vector<std::string> &ret){
+#endif
+#if defined(linux) || defined(__MINGW32__) || defined(__APPLE__)
+    static inline int scanDir(std::string path, std::vector<std::string> &ret){
         DIR *dir;
         struct dirent *rent;
         dir = opendir(path.c_str());
@@ -70,23 +71,24 @@ namespace utils{
             strcpy(s,rent->d_name);
             if (s[0] != '.'){
                 ret.push_back(s);
-            }   
+            }
         }
+        closedir(dir);
         return ret.size();
     }
-    #endif
+#endif
 
     /**
      * Create directory
      * @param path directory to be created.
      * @return 0 if directory is created successfully, -1 otherwise.
      */
-    inline int _mkdir(const char *path){
-        #ifdef _WIN32
-            return ::_mkdir(path);
-        #else
-            return ::mkdir(path, 0775);
-        #endif
+    static inline int _mkdir(const char *path){
+#ifdef _WIN32
+        return ::_mkdir(path);
+#else
+        return ::mkdir(path, 0775);
+#endif
     }
 
     /**
@@ -94,7 +96,7 @@ namespace utils{
      * @param path directory to be created.
      * @return 0 if directory is created successfully, -1 otherwise.
      */
-    inline int mkdir(const char *path){
+    static inline int mkdir(const char *path){
         std::string currentPath = "";
         std::string dirName;
         std::stringstream ss(path);
@@ -114,12 +116,12 @@ namespace utils{
      * @param path directory to be deleted.
      * @return 0 if delete successfully, -1 otherwise.
      */
-    inline int rmdir(const char *path){
-        #ifdef _WIN32
-            return ::_rmdir(path);
-        #else
-            return ::rmdir(path);
-        #endif
+    static inline int rmdir(const char *path){
+#ifdef _WIN32
+        return ::_rmdir(path);
+#else
+        return ::rmdir(path);
+#endif
     }
 
     /**
@@ -127,14 +129,14 @@ namespace utils{
      * @param path file to be deleted.
      * @return 0 if delete successfully, -1 otherwise.
      */
-    inline int rmfile(const char *path){
-        #ifdef _WIN32
-            return ::_unlink(path);
-        #else
-            return ::unlink(path);
-        #endif
+    static inline int rmfile(const char *path){
+#ifdef _WIN32
+        return ::_unlink(path);
+#else
+        return ::unlink(path);
+#endif
     }
 
 
-    
+
 }

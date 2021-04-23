@@ -4,7 +4,6 @@
 MemTable::MemTable() {
     head = new Node();
     keyNumber = 0;
-    level0Number = 0;
 }
 
 MemTable::~MemTable() {
@@ -13,7 +12,7 @@ MemTable::~MemTable() {
 }
 
 
-void MemTable::put(LsmKey k, LsmValue v) {
+void MemTable::put(LsmKey k, const LsmValue& v) {
 
     stack<Node*> path = stack<Node*>();
     Node* p = head;
@@ -108,6 +107,10 @@ void MemTable::reset() {
     }
     head = new Node();
     keyNumber = 0;
+}
+
+bool MemTable::empty() {
+    return head->next == nullptr;
 }
 
 /**

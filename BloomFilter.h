@@ -10,7 +10,9 @@ public:
     bool* bitArray;
 
     BloomFilter();
+    explicit BloomFilter(bool* bitArray);
     ~BloomFilter();
+
     bool hasKey(LsmKey k) const;
     void insert(LsmKey k);
 };

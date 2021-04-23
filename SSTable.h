@@ -45,7 +45,7 @@ private:
 
     int64_t find(LsmKey k, vector<DataIndex> arr, int64_t start, int64_t end) const;
     LsmValue getValueFromDisk(size_t index) const;
-    LsmValue readValueFromFile(ifstream& table, uint32_t startOffset, uint32_t endOffset, bool multiValue) const;
+    static LsmValue readValueFromFile(ifstream& table, uint32_t startOffset, uint32_t endOffset, bool multiValue) ;
 
 public:
     SSTable(size_t level,
@@ -68,8 +68,8 @@ public:
 typedef shared_ptr<SSTable> SSTPtr;
 typedef pair<SSTPtr, size_t> KeyRef;
 
-struct SSTComparator {
-    bool operator() (const SSTPtr sst1, const SSTPtr sst2) {
+struct SSTTimeStampPriorComparator {
+    bool operator() (const SSTPtr& sst1, const SSTPtr& sst2) {
         TimeStamp stamp1 = sst1->getTimeStamp();
         TimeStamp stamp2 = sst2->getTimeStamp();
         LsmKey minKey1 = sst1->getMinKey();
@@ -77,6 +77,12 @@ struct SSTComparator {
         if (stamp1 != stamp2)
             return stamp1 < stamp2;
         return minKey1 < minKey2;
+    }
+};
+
+struct SSTKeyPriorComparator {
+    bool operator() (const SSTPtr& sst1, const SSTPtr& sst2) {
+        return sst1->getMinKey() < sst2->getMinKey();
     }
 };
 

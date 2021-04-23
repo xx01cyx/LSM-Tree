@@ -1,3 +1,5 @@
+#include <__bit_reference>
+
 #pragma once
 
 #include <memory>
@@ -20,10 +22,15 @@ private:
     unordered_map<size_t, shared_ptr<vector<SSTPtr>>> ssTables;
     TimeStamp timeStamp;
 
+    void readAllSSTsFromDisk();
+    static SSTPtr readSSTFromDisk(const string& filename, size_t level);
+    void clearDisk();
+
     bool memTableOverflow(const LsmValue& v) const;
     void memToDisk();
     LsmValue getValueFromDisk(LsmKey key);
     uint32_t levelOverflow(size_t level);
+    void detectAndHandleOverflow();
 
     void compact0();
     void compact(size_t upperLevel, uint32_t overflowNumber);
@@ -35,7 +42,7 @@ private:
     vector<SSTPtr> getCompactSSTs(size_t upperLevel, uint32_t overflowNumber);
 
     static vector<SSTPtr> merge0AndWriteToDisk(const vector<SSTPtr>& SSTs, TimeStamp maxTimeStamp, const KVPair& data);
-    static vector<SSTPtr> mergeAndWriteToDisk(SSTPtr upperLevelSST, const vector<SSTPtr>& lowerLevelSSTs,
+    static vector<SSTPtr> mergeAndWriteToDisk(const SSTPtr& upperLevelSST, const vector<SSTPtr>& lowerLevelSSTs,
                                               TimeStamp maxTimeStamp, const KVPair& data);
 
     // Reconstruction

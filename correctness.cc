@@ -47,7 +47,6 @@ private:
         }
 		phase();
 
-
 		// Test deletions
 
         vector<uint64_t> evenKeys;

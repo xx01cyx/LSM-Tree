@@ -6,6 +6,7 @@
 #include <stack>
 #include <cstdlib>
 #include <memory>
+#include <utility>
 #include "constants.h"
 #include "SSTable.h"
 
@@ -15,35 +16,37 @@ class MemTable {
 
     struct Node {
 
-        LsmKey key;
+        LsmKey key{};
         LsmValue value;
         Node* next;
         Node* down;
 
         Node() : next(nullptr), down(nullptr) {}
-        Node(LsmKey key, LsmValue value) : key(key), value(value), next(nullptr), down(nullptr) {}
+        Node(LsmKey key, LsmValue value) : key(key), value(std::move(value)), next(nullptr), down(nullptr) {}
         Node(Node* down) : next(nullptr), down(down) {}
         Node(Node* next, Node* down) : next(next), down(down) {}
-        Node(LsmKey key, LsmValue value, Node* next) : key(key), value(value), next(next), down(nullptr) {}
-        Node(LsmKey key, LsmValue value, Node* next, Node* down) : key(key), value(value), next(next), down(down) {}
+        Node(LsmKey key, LsmValue value, Node* next) : key(key), value(std::move(value)), next(next), down(nullptr) {}
+        Node(LsmKey key, LsmValue value, Node* next, Node* down) : key(key), value(std::move(value)), next(next), down(down) {}
 
     };
 
 private:
     Node* head;
     uint64_t keyNumber;
-    int level0Number;   // for infinite level 0
 
     Node* getLowestHead() const;
 
 public:
     MemTable();
     ~MemTable();
-    void put(LsmKey k, LsmValue v);
+
+    void put(LsmKey k, const LsmValue& v);
     LsmValue get(LsmKey k);
     bool del(LsmKey k);
     void reset();
+    bool empty();
     SSTPtr writeToDisk(TimeStamp timeStamp);
+
 };
 
 

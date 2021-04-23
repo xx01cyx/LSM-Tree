@@ -2,14 +2,25 @@
 
 KVStore::KVStore(const std::string &dir): KVStoreAPI(dir)
 {
+    if (!utils::dirExists(dir))
+        utils::mkdir(dir.c_str());
+
     memTable = make_shared<MemTable>();
     memTableSize = HEADER_SIZE + BLOOM_FILTER_SIZE;
     ssTables = unordered_map<size_t, shared_ptr<vector<SSTPtr>>>();
     ssTables[0] = make_shared<vector<SSTPtr>>();
     timeStamp = 1;
+
+    readAllSSTsFromDisk();
+
 }
 
-KVStore::~KVStore() = default;
+KVStore::~KVStore() {
+    if (!memTable->empty()) {
+        memToDisk();
+        detectAndHandleOverflow();
+    }
+}
 
 /**
  * Insert/Update the key-value pair.
@@ -19,22 +30,12 @@ void KVStore::put(uint64_t key, const std::string &s)
 {
     if (memTableOverflow(s)) {
         memToDisk();
-        timeStamp++;
 
         // Update states
         memTable->reset();
         memTableSize = HEADER_SIZE + BLOOM_FILTER_SIZE;
 
-        // Deal with level overflow
-        if (levelOverflow(0))
-            compact0();
-        size_t levelNumber = ssTables.size();
-        for (size_t level = 1; level < levelNumber; ++level) {
-            uint32_t overflowNumber = levelOverflow(level);
-            if (!overflowNumber)
-                break;
-            compact(level, overflowNumber);
-        }
+        detectAndHandleOverflow();
     }
 
     memTable->put(key, s);
@@ -75,17 +76,110 @@ bool KVStore::del(uint64_t key)
  */
 void KVStore::reset()
 {
+    clearDisk();
     memTable->reset();
-    string pathname = "./data/";
-    utils::rmdir(pathname.c_str());
     memTableSize = HEADER_SIZE + BLOOM_FILTER_SIZE;
     ssTables.clear();
     ssTables[0] = make_shared<vector<SSTPtr>>();
     timeStamp = 1;
 }
 
+void KVStore::readAllSSTsFromDisk() {
+    size_t level = 0;
+    string levelDir = "./data/level-" + to_string(level) + "/";
+    vector<string> filenames;
+    bool emptyL0;
+
+    while (utils::dirExists(levelDir)) {
+        utils::scanDir(levelDir, filenames);
+        vector<SSTPtr> levelSSTs;
+        for (const auto& filename : filenames) {
+            string sstName = levelDir + filename;
+            SSTPtr sst = readSSTFromDisk(sstName, level);
+            levelSSTs.push_back(sst);
+        }
+
+        if (level == 0) {
+            if (levelSSTs.empty())
+                emptyL0 = true;
+            else if (levelSSTs.size() == 1)
+                timeStamp = levelSSTs.front()->getTimeStamp() + 1;
+            else {
+                SSTTimeStampPriorComparator timeStampLessThan;
+                SSTPtr firstSST = levelSSTs[0];
+                SSTPtr secondSST = levelSSTs[1];
+                timeStamp = timeStampLessThan(firstSST, secondSST) ?
+                            secondSST->getTimeStamp() + 1 : firstSST->getTimeStamp() + 1;
+            }
+        } else {
+            if (level == 1 && emptyL0)
+                timeStamp = getMaxTimeStamp(levelSSTs) + 1;
+            SSTKeyPriorComparator sstComparator;
+            sort(levelSSTs.begin(), levelSSTs.end(), sstComparator);
+        }
+        ssTables[level] = make_shared<vector<SSTPtr>>(levelSSTs);
+
+        ++level;
+        levelDir = "./data/level-" + to_string(level) + "/";
+        filenames.clear();
+    }
+}
+
+SSTPtr KVStore::readSSTFromDisk(const string& filename, size_t level) {
+    SSTHeader sstHeader;
+    bool* bitArray = new bool[BLOOM_FILTER_SIZE];
+    vector<DataIndex> dataIndexes;
+
+    ifstream sstFile(filename, ios::binary | ios::in);
+    if (!sstFile) {
+        cerr << "Cannot open file `" << filename << "`." << endl;
+        exit(-1);
+    }
+
+    sstFile.read((char*)&sstHeader, HEADER_SIZE);
+    sstFile.read((char*)bitArray, BLOOM_FILTER_SIZE);
+
+    uint64_t keyNumber = sstHeader.keyNumber;
+    for (uint32_t i = 0; i < keyNumber; ++i) {
+        DataIndex dataIndex;
+        sstFile.read((char*)&dataIndex, DATA_INDEX_SIZE);
+        dataIndexes.push_back(dataIndex);
+    }
+
+    BloomFilter bloomFilter(bitArray);
+    SSTPtr sst = make_shared<SSTable>(level, sstHeader, bloomFilter, dataIndexes);
+    return sst;
+}
+
+/**
+ * Remove all the SST files and corresponding directories in the disk.
+ */
+void KVStore::clearDisk() {
+    size_t levelNumber = ssTables.size();
+    for (size_t level = 0; level < levelNumber; ++level) {
+        vector<SSTPtr> levelSSTs = *ssTables[level];
+        for (const auto& sst : levelSSTs)
+            utils::rmfile(sst->getFilename().c_str());
+        string dir = "./data/level-" + to_string(level);
+        utils::rmdir(dir.c_str());
+    }
+}
+
 bool KVStore::memTableOverflow(const LsmValue& v) const {
     return memTableSize + DATA_INDEX_SIZE + v.size() > MAX_SSTABLE_SIZE;
+}
+
+void KVStore::detectAndHandleOverflow() {
+    if (levelOverflow(0))
+        compact0();
+
+    size_t levelNumber = ssTables.size();
+    for (size_t level = 1; level < levelNumber; ++level) {
+        uint32_t overflowNumber = levelOverflow(level);
+        if (!overflowNumber)
+            break;
+        compact(level, overflowNumber);
+    }
 }
 
 /**
@@ -95,6 +189,7 @@ bool KVStore::memTableOverflow(const LsmValue& v) const {
 void KVStore::memToDisk() {
     SSTPtr sst = memTable->writeToDisk(timeStamp);   // Write the data into disk (level 0)
     ssTables[0]->push_back(sst);    // Append to level 0 cache
+    timeStamp++;
 }
 
 /**
@@ -271,7 +366,7 @@ void KVStore::getCompact0Range(LsmKey& minKey, LsmKey& maxKey) {
 vector<SSTPtr> KVStore::getCompactSSTs(size_t level, uint32_t overflowNumber) {
 
     vector<SSTPtr> levelSSTs = *ssTables[level];
-    SSTComparator sstComparator;
+    SSTTimeStampPriorComparator sstComparator;
     sort(levelSSTs.begin(), levelSSTs.end(), sstComparator);
 
     vector<SSTPtr> compactSSTs;
@@ -375,7 +470,7 @@ vector<SSTPtr> KVStore::merge0AndWriteToDisk(const vector<SSTPtr> &SSTs, TimeSta
  * size is at least 1.
  * @return New SSTs generated during compaction.
  */
-vector<SSTPtr> KVStore::mergeAndWriteToDisk(const SSTPtr upperLevelSST, const vector<SSTPtr>& lowerLevelSSTs,
+vector<SSTPtr> KVStore::mergeAndWriteToDisk(const SSTPtr& upperLevelSST, const vector<SSTPtr>& lowerLevelSSTs,
                                             TimeStamp maxTimeStamp, const KVPair& data) {
 
     // Initialize.

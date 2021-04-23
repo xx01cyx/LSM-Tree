@@ -5,7 +5,12 @@ BloomFilter::BloomFilter() {
     bitArray = (bool*)memset(bitArray, 0, BLOOM_FILTER_SIZE);
 }
 
-BloomFilter::~BloomFilter() {}
+BloomFilter::BloomFilter(bool* bits) {
+    bitArray = new bool[BLOOM_FILTER_SIZE];
+    memcpy(bitArray, bits, BLOOM_FILTER_SIZE);
+}
+
+BloomFilter::~BloomFilter() = default;
 
 void BloomFilter::insert(LsmKey k) {
     uint32_t* hashValues = new uint32_t[4];

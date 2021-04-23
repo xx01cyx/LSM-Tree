@@ -2,7 +2,7 @@
 
 
 SSTable::SSTable(size_t level, SSTHeader header, BloomFilter bloomFilter, vector<DataIndex> dataIndexes)
-    : level(level), header(header), bloomFilter(bloomFilter), dataIndexes(dataIndexes) {}
+        : level(level), header(header), bloomFilter(bloomFilter), dataIndexes(dataIndexes) {}
 
 LsmValue SSTable::get(LsmKey k) const {
     if (!bloomFilter.hasKey(k))
@@ -111,7 +111,7 @@ void SSTable::getValuesFromDisk(KVPair& sstData) const {
  * Note that the start position must have been specified before if the param is set true.
  * @return The value read from the file.
  */
-LsmValue SSTable::readValueFromFile(ifstream& table, uint32_t startOffset, uint32_t endOffset, bool multiValue) const {
+LsmValue SSTable::readValueFromFile(ifstream& table, uint32_t startOffset, uint32_t endOffset, bool multiValue) {
     LsmValue value;
     uint32_t length = endOffset - startOffset;
     value.resize(length);
@@ -124,10 +124,10 @@ LsmValue SSTable::readValueFromFile(ifstream& table, uint32_t startOffset, uint3
 
 string SSTable::getFilename() const {
     return "./data/level-" + to_string(level)
-            + "/table-" + to_string(header.timeStamp)
-            + "-" + to_string(header.minKey)
-            + "-" + to_string(header.maxKey)
-            + ".sst";
+           + "/table-" + to_string(header.timeStamp)
+           + "-" + to_string(header.minKey)
+           + "-" + to_string(header.maxKey)
+           + ".sst";
 }
 
 size_t SSTable::getLevel() const {
