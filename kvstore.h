@@ -41,8 +41,8 @@ private:
                                   int64_t& minOverlapIndex, int64_t& maxOverlapIndex);
     vector<SSTPtr> getCompactSSTs(size_t upperLevel, uint32_t overflowNumber);
 
-    static vector<SSTPtr> merge0AndWriteToDisk(const vector<SSTPtr>& SSTs, TimeStamp maxTimeStamp, const KVPair& data);
-    static vector<SSTPtr> mergeAndWriteToDisk(const SSTPtr& upperLevelSST, const vector<SSTPtr>& lowerLevelSSTs,
+    vector<SSTPtr> merge0AndWriteToDisk(const vector<SSTPtr>& SSTs, TimeStamp maxTimeStamp, const KVPair& data);
+    vector<SSTPtr> mergeAndWriteToDisk(const SSTPtr& upperLevelSST, const vector<SSTPtr>& lowerLevelSSTs,
                                               TimeStamp maxTimeStamp, const KVPair& data);
 
     // Reconstruction

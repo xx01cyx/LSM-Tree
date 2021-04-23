@@ -12,6 +12,7 @@ KVStore::KVStore(const std::string &dir): KVStoreAPI(dir)
     timeStamp = 1;
 
     readAllSSTsFromDisk();
+    detectAndHandleOverflow();
 
 }
 
@@ -302,8 +303,9 @@ void KVStore::compact(size_t upperLevel, uint32_t overflowNumber) {
 
     // New the lower level if it does not exist.
     size_t lowerLevel = upperLevel + 1;
-    if (!ssTables.count(lowerLevel))
+    if (!ssTables.count(lowerLevel)) {
         ssTables[lowerLevel] = make_shared<vector<SSTPtr>>();
+    }
 
     // Find the SSTs possessing the smallest time stamps or minimum keys.
     vector<SSTPtr> compactSSTs = getCompactSSTs(upperLevel, overflowNumber);
@@ -435,12 +437,14 @@ vector<SSTPtr> KVStore::merge0AndWriteToDisk(const vector<SSTPtr> &SSTs, TimeSta
         size_t currentIndex = currentRef.second;
         vector<DataIndex> currentDataIndexes = currentSST->getDataIndexes();
         LsmKey currentKey = currentDataIndexes[currentIndex].key;
+        LsmValue currentValue = data.at(currentKey);
 
         if (sortedKeys.empty())
             sortedKeys.push_back(currentKey);
 
-        if (!sortedKeys.empty() && sortedKeys.back() != currentKey) {
-            size_t sizeIncrement = DATA_INDEX_SIZE + data.at(currentKey).size();
+        if ((ssTables.size() != 2 || currentValue != DELETE_SIGN)
+            && !sortedKeys.empty() && sortedKeys.back() != currentKey) {
+            size_t sizeIncrement = DATA_INDEX_SIZE + currentValue.size();
             if (currentSize + sizeIncrement > MAX_SSTABLE_SIZE) {
                 newSSTs.push_back(generateNewSST(sortedKeys, data, 1, maxTimeStamp));
                 sortedKeys.clear();
@@ -489,8 +493,10 @@ vector<SSTPtr> KVStore::mergeAndWriteToDisk(const SSTPtr& upperLevelSST, const v
 
     auto merge = [&](const SSTPtr& sst, size_t& index) {
         LsmKey key = sst->getDataIndexes()[index].key;
-        if (!sortedKeys.empty() && sortedKeys.back() != key) {
-            size_t sizeIncrement = DATA_INDEX_SIZE + data.at(key).size();
+        const LsmValue& value = data.at(key);
+        if ((lowerLevel != ssTables.size() || value != DELETE_SIGN)
+            && !sortedKeys.empty() && sortedKeys.back() != key) {
+            size_t sizeIncrement = DATA_INDEX_SIZE + value.size();
             if (currentSize + sizeIncrement > MAX_SSTABLE_SIZE) {
                 newSSTs.push_back(generateNewSST(sortedKeys, data, lowerLevel, maxTimeStamp));
                 sortedKeys.clear();
