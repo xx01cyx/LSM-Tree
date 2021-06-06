@@ -218,9 +218,12 @@ LsmValue KVStore::getValueFromDisk(LsmKey key) {
     // Read from L0.
     vector<SSTPtr> L0SSTs = *ssTables[0];
     uint32_t L0SSTNumber = L0SSTs.size();
-    for (size_t i = 0; i < L0SSTNumber; ++i) {
+    for (int i = L0SSTNumber - 1; i >= 0; --i) {
         SSTPtr sst = L0SSTs[i];
         getNewestValue(sst, key);
+
+        if (newestValue.length() != 0)
+            return newestValue;
     }
 
     // Read from the rest levels.
@@ -233,7 +236,7 @@ LsmValue KVStore::getValueFromDisk(LsmKey key) {
         getNewestValue(targetSST, key);
 
         if (newestValue.length() != 0)
-            break;
+            return newestValue;
     }
 
     return newestValue;

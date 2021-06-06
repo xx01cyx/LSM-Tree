@@ -14,7 +14,6 @@ private:
 		uint64_t i;
 
 		// Test a single key
-
 		EXPECT(not_found, store.get(1));
 		store.put(1, "SE");
 		EXPECT("SE", store.get(1));
