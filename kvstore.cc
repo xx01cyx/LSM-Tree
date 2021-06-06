@@ -128,7 +128,7 @@ void KVStore::readAllSSTsFromDisk() {
 
 SSTPtr KVStore::readSSTFromDisk(const string& filename, size_t level) {
     SSTHeader sstHeader;
-    bool* bitArray = new bool[BLOOM_FILTER_SIZE];
+    bool* byteArray = new bool[BLOOM_FILTER_SIZE];
     vector<DataIndex> dataIndexes;
 
     ifstream sstFile(filename, ios::binary | ios::in);
@@ -138,7 +138,7 @@ SSTPtr KVStore::readSSTFromDisk(const string& filename, size_t level) {
     }
 
     sstFile.read((char*)&sstHeader, HEADER_SIZE);
-    sstFile.read((char*)bitArray, BLOOM_FILTER_SIZE);
+    sstFile.read((char*)byteArray, BLOOM_FILTER_SIZE);
 
     uint64_t keyNumber = sstHeader.keyNumber;
     for (uint32_t i = 0; i < keyNumber; ++i) {
@@ -147,7 +147,7 @@ SSTPtr KVStore::readSSTFromDisk(const string& filename, size_t level) {
         dataIndexes.push_back(dataIndex);
     }
 
-    BloomFilter bloomFilter(bitArray);
+    BloomFilter bloomFilter(byteArray);
     SSTPtr sst = make_shared<SSTable>(level, sstHeader, bloomFilter, dataIndexes);
     return sst;
 }
@@ -766,7 +766,7 @@ SSTPtr KVStore::generateNewSST(const vector<LsmKey> &keys, const KVPair& data,
 
     // Write bloom filter into the file.
     out.seekp(HEADER_SIZE, ios::beg);
-    out.write((char*)(bloomFilter.bitArray), BLOOM_FILTER_SIZE);
+    out.write((char*)(bloomFilter.byteArray), BLOOM_FILTER_SIZE);
 
     // Close the file.
     out.close();

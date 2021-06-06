@@ -169,7 +169,7 @@ SSTPtr MemTable::writeToDisk(TimeStamp timeStamp) {
 
     // Write header and bloom filter into the file.
     out.write((char*)&sstHeader, HEADER_SIZE);
-    out.write((char*)(bloomFilter.bitArray), BLOOM_FILTER_SIZE);
+    out.write((char*)(bloomFilter.byteArray), BLOOM_FILTER_SIZE);
 
     // Set the file position to the start of data.
     out.seekp(dataStart, ios::beg);

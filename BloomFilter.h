@@ -7,10 +7,10 @@
 
 class BloomFilter {
 public:
-    bool* bitArray;
+    bool* byteArray;
 
     BloomFilter();
-    explicit BloomFilter(bool* bitArray);
+    explicit BloomFilter(bool* byteArray);
     ~BloomFilter();
 
     bool hasKey(LsmKey k) const;
