@@ -8,6 +8,9 @@
 #include <queue>
 #include <utility>
 #include <algorithm>
+#include <cstdio>
+#include <fstream>
+#include <cstdlib>
 #include "kvstore_api.h"
 #include "MemTable.h"
 #include "SSTable.h"

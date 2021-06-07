@@ -194,49 +194,89 @@ void KVStore::memToDisk() {
 }
 
 /**
- * @return The value corresponding with the key in the SST files in the disk
- * Retain "~DELETED~".
+ * No information about SSTs is cached in memory. Get value from
+ * the disk by reading the files stored in disk.
  */
 LsmValue KVStore::getValueFromDisk(LsmKey key) {
-
-    size_t levelNumber = ssTables.size();
-    if (levelNumber == 0)   // All data are stored in memTable.
-        return "";
 
     TimeStamp maxTimeStamp = 0;
     LsmValue newestValue;
 
-    auto getNewestValue = [&](const SSTPtr& sst, LsmKey key) {
-        LsmValue newValue = sst->get(key);
-        TimeStamp newTimeStamp = sst->getTimeStamp();
-        if (newValue.length() != 0 && newTimeStamp > maxTimeStamp) {
-            newestValue = newValue;
-            maxTimeStamp = newTimeStamp;
+    auto getNewestValue = [&](const string& diskFilename, LsmKey key) {
+
+        ifstream sstFile(diskFilename, ios::in | ios::binary);
+        if (!sstFile) {
+            cerr << "Cannot open file `" << diskFilename << "`." << endl;
+            exit(-1);
         }
+
+        TimeStamp ntimeStamp;
+        uint64_t keyNumber;
+        sstFile.read((char*)&ntimeStamp, sizeof(TimeStamp));
+        sstFile.read((char*)&keyNumber, sizeof(uint64_t));
+
+        uint32_t dataIndexStart = HEADER_SIZE + BLOOM_FILTER_SIZE;
+        sstFile.seekg(dataIndexStart, ios::beg);
+
+        LsmKey sstKey;
+        uint32_t offset;
+        sstFile.read((char*)&sstKey, sizeof(LsmKey));
+        sstFile.read((char*)&offset, sizeof(uint32_t));
+
+        while (sstKey < key && --keyNumber > 0) {
+            sstFile.read((char*)&sstKey, sizeof(LsmKey));
+            sstFile.read((char*)&offset, sizeof(uint32_t));
+        }
+
+        if (sstKey != key)
+            return;
+
+        uint32_t start = offset;
+        uint32_t end;
+
+        if (--keyNumber != 0) {
+            sstFile.read((char *) &sstKey, sizeof(LsmKey));
+            sstFile.read((char *) &end, sizeof(uint32_t));
+        } else {
+            sstFile.seekg(0, ios::end);
+            end = sstFile.tellg();
+        }
+
+        uint32_t length = end - start;
+        newestValue.resize(length);
+        sstFile.seekg(start, ios::beg);
+        sstFile.read((char*)&newestValue[0], length);
+        maxTimeStamp = ntimeStamp;
+
+        sstFile.close();
+
     };
 
-    // Read from L0.
-    vector<SSTPtr> L0SSTs = *ssTables[0];
-    uint32_t L0SSTNumber = L0SSTs.size();
-    for (int i = L0SSTNumber - 1; i >= 0; --i) {
-        SSTPtr sst = L0SSTs[i];
-        getNewestValue(sst, key);
+    vector<string> filenames;
+    size_t level = 0;
+    string levelDir = "./data/level-0/";
 
-        if (newestValue.length() != 0)
+    while (utils::dirExists(levelDir)) {
+        utils::scanDir(levelDir, filenames);
+        for (const auto& filename : filenames) {
+            LsmKey minKey, maxKey;
+            TimeStamp newTimeStamp;
+            char* pEnd;
+            size_t posStart = filename.find('-') + 1;
+            newTimeStamp = strtoll(filename.substr(posStart).c_str(), &pEnd, 0);
+            minKey = strtoll(pEnd + 1, &pEnd, 0);
+            maxKey = strtoll(pEnd + 1, nullptr, 0);
+            if (key < minKey || key > maxKey)
+                continue;
+            if (newTimeStamp > maxTimeStamp) {
+                getNewestValue(levelDir + filename, key);
+            }
+        }
+        if (!newestValue.empty())
             return newestValue;
-    }
-
-    // Read from the rest levels.
-    for (size_t n = 1; n < levelNumber; n++) {
-        vector<SSTPtr> levelSSTs = *ssTables[n];
-        if (key < levelSSTs.front()->getMinKey() || key > levelSSTs.back()->getMaxKey())
-            continue;
-        uint32_t sstIndex = sstBinarySearch(levelSSTs, key, 0, levelSSTs.size() - 1);
-        SSTPtr targetSST = levelSSTs[sstIndex];
-        getNewestValue(targetSST, key);
-
-        if (newestValue.length() != 0)
-            return newestValue;
+        level++;
+        levelDir = "./data/level-" + to_string(level) + "/";
+        filenames.clear();
     }
 
     return newestValue;
