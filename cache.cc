@@ -10,8 +10,8 @@ using namespace std;
 
 const int OP_TIMES = 10000;
 const int TEST_ITERS = 5;
-const int VALUE_SIZES_LEN = 4;
-const size_t valueSizes[VALUE_SIZES_LEN] = {50, 500, 5000, 50000};
+const int VALUE_SIZES_LEN = 5;
+const size_t valueSizes[VALUE_SIZES_LEN] = {50, 500, 5000, 50000, 500000};
 
 float computeTimeDiff(clock_t startTime, clock_t endTime);
 
@@ -56,7 +56,7 @@ int main() {
 
             getRecord[j] += getDelay;
 
-            cout << "GET delay for size " << valueSize << " is " << getDelay << endl;
+            cout << "GET delay for size " << valueSize << " is " << getDelay << "s." << endl;
 
         }
 
@@ -69,8 +69,8 @@ int main() {
     for_each(getRecord.begin(), getRecord.end(), calcAvgDelay);
 
     for (int j = 0; j < VALUE_SIZES_LEN; ++j) {
-        cout << "Value size: " << valueSizes[j] << endl;
-        cout << "Average delay for GET: " << getRecord[j] << endl;
+        cout << "Value size: " << valueSizes[j] << ' ';
+        cout << "Average delay for GET: " << getRecord[j] << "s" << endl;
     }
 
     return 0;
