@@ -5,8 +5,8 @@ SSTable::SSTable(size_t level, SSTHeader header, BloomFilter bloomFilter, vector
         : level(level), header(header), bloomFilter(bloomFilter), dataIndexes(dataIndexes) {}
 
 LsmValue SSTable::get(LsmKey k) const {
-    if (!bloomFilter.hasKey(k))
-        return "";
+//    if (!bloomFilter.hasKey(k))
+//        return "";
     int64_t index = find(k, dataIndexes, 0, header.keyNumber - 1);
     if (index < 0)
         return "";

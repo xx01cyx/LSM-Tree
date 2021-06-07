@@ -11,6 +11,9 @@ private:
 
 	void regular_test(uint64_t max)
 	{
+
+	    store.reset();
+
 		uint64_t i;
 
 		// Test a single key

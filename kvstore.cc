@@ -194,8 +194,8 @@ void KVStore::memToDisk() {
 }
 
 /**
- * @return The value corresponding with the key in the SST files in the disk
- * Retain "~DELETED~".
+ * No bloom filter cached in memory. Can only read indexes (keys and
+ * corresponding offsets) from memory.
  */
 LsmValue KVStore::getValueFromDisk(LsmKey key) {
 
