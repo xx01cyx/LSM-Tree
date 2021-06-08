@@ -5,3 +5,6 @@ data/
 correctness
 persistence
 .DS_Store
+cache
+compaction
+routine
