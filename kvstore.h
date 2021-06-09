@@ -1,5 +1,3 @@
-#include <__bit_reference>
-
 #pragma once
 
 #include <memory>
@@ -8,6 +6,7 @@
 #include <queue>
 #include <utility>
 #include <algorithm>
+#include <cmath>
 #include "kvstore_api.h"
 #include "MemTable.h"
 #include "SSTable.h"

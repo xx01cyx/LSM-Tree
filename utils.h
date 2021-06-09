@@ -11,7 +11,7 @@
 #include <io.h>
 #include <windows.h>
 #endif
-#if defined(linux) || defined(__MINGW32__) || defined(__APPLE__)
+#if defined(__linux__) || defined(__MINGW32__) || defined(__APPLE__)
 #include <dirent.h>
 #include <unistd.h>
 #endif
@@ -34,7 +34,7 @@ namespace utils{
      * @param ret all files name in directory.
      * @return files number.
      */
-#if defined(_WIN32) && !defined(__MINGW32__)
+    #if defined(_WIN32) && !defined(__MINGW32__) 
     static inline int scanDir(std::string path, std::vector<std::string> &ret){
         std::string extendPath;
         if(path[path.size() - 1] == '/'){
@@ -60,8 +60,8 @@ namespace utils{
         FindClose(h);
         return ret.size();
     }
-#endif
-#if defined(linux) || defined(__MINGW32__) || defined(__APPLE__)
+    #endif
+    #if defined(__linux__) || defined(__MINGW32__) || defined(__APPLE__)
     static inline int scanDir(std::string path, std::vector<std::string> &ret){
         DIR *dir;
         struct dirent *rent;
@@ -71,12 +71,12 @@ namespace utils{
             strcpy(s,rent->d_name);
             if (s[0] != '.'){
                 ret.push_back(s);
-            }
+            }   
         }
         closedir(dir);
         return ret.size();
     }
-#endif
+    #endif
 
     /**
      * Create directory
@@ -84,11 +84,11 @@ namespace utils{
      * @return 0 if directory is created successfully, -1 otherwise.
      */
     static inline int _mkdir(const char *path){
-#ifdef _WIN32
-        return ::_mkdir(path);
-#else
-        return ::mkdir(path, 0775);
-#endif
+        #ifdef _WIN32
+            return ::_mkdir(path);
+        #else
+            return ::mkdir(path, 0775);
+        #endif
     }
 
     /**
@@ -117,11 +117,11 @@ namespace utils{
      * @return 0 if delete successfully, -1 otherwise.
      */
     static inline int rmdir(const char *path){
-#ifdef _WIN32
-        return ::_rmdir(path);
-#else
-        return ::rmdir(path);
-#endif
+        #ifdef _WIN32
+            return ::_rmdir(path);
+        #else
+            return ::rmdir(path);
+        #endif
     }
 
     /**
@@ -130,13 +130,13 @@ namespace utils{
      * @return 0 if delete successfully, -1 otherwise.
      */
     static inline int rmfile(const char *path){
-#ifdef _WIN32
-        return ::_unlink(path);
-#else
-        return ::unlink(path);
-#endif
+        #ifdef _WIN32
+            return ::_unlink(path);
+        #else
+            return ::unlink(path);
+        #endif
     }
 
 
-
+    
 }
